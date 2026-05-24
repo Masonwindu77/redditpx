@@ -537,7 +537,12 @@
         .flat();
 
       console.log(nexturls);
-      nexturls = uniqBy(nexturls, () => (item) => item.preview.img.default);
+      nexturls = uniqBy(nexturls, function(item) {
+        if (item.preview && item.preview.img && item.preview.img.default) {
+          return item.preview.img.default;
+        }
+        return item.default || item.url || '';
+      });
     } else if (filterValue) {
       // We're here because user filtered the list
 
@@ -973,6 +978,35 @@
     favorite.set($favorite);
   }
 
+  function getPrefetchSrc(item, hiresMode) {
+    if (!item) return "";
+    if (item.hires || item.default) {
+      return hiresMode && item.hires ? item.hires : item.default;
+    }
+    if (hiresMode && item.url) {
+      return item.url;
+    }
+    if (item.preview && item.preview.img && item.preview.img.default) {
+      return item.preview.img.default;
+    }
+    return item.default || item.url || "";
+  }
+
+  function getPrefetchVideoSrc(item, loresMode) {
+    if (!item || !item.is_video) return "";
+    if (item.hires && !item.preview) {
+      return item.hires;
+    }
+    if (loresMode && item.preview && item.preview.vid && item.preview.vid.lores) {
+      return item.preview.vid.lores;
+    }
+    if (item.preview && item.preview.vid) {
+      if (item.preview.vid.webm) return item.preview.vid.webm;
+      if (item.preview.vid.mp4) return item.preview.vid.mp4;
+    }
+    return item.hires || item.url || "";
+  }
+
   function showToast(msg) {
     if (toastTimerId) {
       clearTimeout(toastTimerId);
@@ -1334,31 +1368,12 @@
                 Icon(icon="{faSync}")
   +if('$prefetch')
     .prefetch
-      +each('nexturls as nexturl (nexturl.preview.img.default)')
-        +if('$hires')
-          +if('nexturl.is_album')
-            img(alt="prefetch-hires", src="{nexturl.preview.img.album[0].hires}")
-            +else()
-              img(alt="prefetch-hires", src="{nexturl.url}")
+      +each('nexturls as nexturl (nexturl.preview && nexturl.preview.img && nexturl.preview.img.default ? nexturl.preview.img.default : (nexturl.default || nexturl.url || nexturl.id))')
+        +if('!nexturl.is_video')
+          img(alt="prefetch", src="{getPrefetchSrc(nexturl, $hires)}")
           +else()
-            +if('nexturl.is_album')
-              img(alt="prefetch", src="{nexturl.preview.img.album[0].default}")
-              +elseif('nexturl.preview')
-                img(alt="prefetch", src="{nexturl.preview.img.default}")
-              +else()
-                img(alt="prefetch", src="{nexturl.default}")
-        +if('nexturl.is_video')
-          video(playsinline, autoplay, loop, muted)
-            +if('$lores')
-              source(src="{nexturl.preview.vid.lores}")
-              +else()
-                +if('nexturl.preview')
-                  +if('nexturl.preview.vid.webm')
-                    source(src="{nexturl.preview.vid.webm}")
-                  +if('nexturl.preview.vid.mp4')
-                    source(src="{nexturl.preview.vid.mp4}")
-                  +else()
-                    source(src="{nexturl.default}")
+            video(playsinline, autoplay, loop, muted)
+              source(src="{getPrefetchVideoSrc(nexturl, $lores)}")
   +if('toastMessage')
     .toast(class:fade-out='{!toastVisible}') {toastMessage}
 </template>
