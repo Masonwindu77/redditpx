@@ -18,7 +18,8 @@
     portraitLandscape,
     muted,
     multireddit,
-    autoHideUI
+    autoHideUI,
+    blockedUsers
   } from "../_prefs";
   autoplayinterval.useLocalStorage(3);
   scrollspeed.useLocalStorage(2);
@@ -33,6 +34,7 @@
   muted.useLocalStorage(true);
   multireddit.useLocalStorage({});
   autoHideUI.useLocalStorage(false);
+  blockedUsers.useLocalStorage({});
 
   function hideSettings() {
     showSettings = false;
@@ -168,6 +170,12 @@
 
     autoHideUI.set(_autoHideUI);
   }
+
+  function unblock(user) {
+    const updated = { ...$blockedUsers };
+    delete updated[user];
+    blockedUsers.set(updated);
+  }
 </script>
 
 <template lang="pug">
@@ -181,6 +189,7 @@
     .nav
       div(class:active='{activeTab == 1}', on:click='{function(){activeTab = 1}}') General
       div(class:active='{activeTab == 2}', on:click='{function(){activeTab = 2}}') Keybindings
+      div(class:active='{activeTab == 3}', on:click='{function(){activeTab = 3}}') Blocked Users
     .options
       div.option(class:active='{activeTab == 1}')
         //p autoplay on/off
@@ -277,6 +286,9 @@
           span.text Toggle favorite
           span.key x
         .item
+          span.text Block user
+          span.key b
+        .item
           span.text Toggle Sound
           span.key m
         .item
@@ -301,6 +313,16 @@
         .item
           span.text Add to multireddit
           span.key s
+      div.option(class:active='{activeTab == 3}')
+        +if('Object.keys($blockedUsers).length === 0')
+          .no-blocked
+            p No blocked users
+          +else()
+            .blocked-list
+              +each('Object.keys($blockedUsers) as user (user)')
+                .blocked-user-item
+                  span.username u/{user}
+                  span.button.unblock-btn(on:click='{function(){unblock(user)}}') Unblock
   .multireddit-popup(class:show='{showMultiredditPopup}')
     .popup-content
       h3 Edit Multireddits
@@ -433,6 +455,51 @@ $over18-border-color: #ea4335
             @include hover()
               background-color: white
               color: black
+
+        .no-blocked
+          text-align: center
+          color: #888
+          padding: 2rem 0
+          font-style: italic
+
+        .blocked-list
+          display: flex
+          flex-direction: column
+          gap: 0.5rem
+
+        .blocked-user-item
+          display: flex
+          justify-content: space-between
+          align-items: center
+          padding: 0.75rem 1rem
+          margin: 0.5rem 0
+          background-color: #222
+          border: 1px solid #333
+          border-radius: 8px
+          transition: background-color 0.2s
+
+          &:hover
+            background-color: #2a2a2a
+
+          .username
+            color: #fff
+            font-weight: 500
+            font-size: 0.95rem
+
+          .unblock-btn
+            border: 1px solid #ea4335
+            color: #ea4335
+            background-color: transparent
+            padding: 4px 10px
+            border-radius: 4px
+            cursor: pointer
+            font-size: 0.85rem
+            transition: all 0.2s ease
+
+            &:hover
+              background-color: #ea4335
+              color: white
+              box-shadow: 0 0 10px rgba(234, 67, 53, 0.4)
 
       .active
         display: block

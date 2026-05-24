@@ -27,6 +27,7 @@
 
   import { faMobileAlt as faPortrait } from "@fortawesome/free-solid-svg-icons/faMobileAlt";
   import { faDesktop as faLandscape } from "@fortawesome/free-solid-svg-icons/faDesktop";
+  import { faBan } from "@fortawesome/free-solid-svg-icons/faBan";
 
   import AutoComplete from "simple-svelte-autocomplete";
 
@@ -59,7 +60,8 @@
     oldreddit,
     muted,
     layout,
-    autoHideUI
+    autoHideUI,
+    blockedUsers
   } from "../_prefs";
   autoplay.useLocalStorage(false);
   autoplayinterval.useLocalStorage(3);
@@ -76,6 +78,7 @@
   muted.useLocalStorage(true);
   layout.useLocalStorage(0);
   autoHideUI.useLocalStorage(false);
+  blockedUsers.useLocalStorage({});
 
   export let params, slugstr;
   export let posts;
@@ -94,6 +97,10 @@
   let title;
   let albumindex = 0;
   let timelineRef; // Reference to the timeline scroll container
+
+  let toastMessage = "";
+  let toastVisible = false;
+  let toastTimerId = null;
 
   // Handle cursor movement - only show UI when it's hidden (if auto-hide is enabled)
   function handleCursorMovement() {
@@ -599,7 +606,18 @@
       tmp = tmp.filter((item) => item.dims.width / item.dims.height > 1.2);
     }
 
+    // Filter out blocked users
+    if ($blockedUsers) {
+      tmp = tmp.filter((item) => !$blockedUsers[item.author]);
+    }
+
     displayposts = tmp;
+  }
+
+  $: {
+    if (displayposts.length > 0 && index >= displayposts.length) {
+      index = displayposts.length - 1;
+    }
   }
 
   function goto(i) {
@@ -955,6 +973,36 @@
     favorite.set($favorite);
   }
 
+  function showToast(msg) {
+    if (toastTimerId) {
+      clearTimeout(toastTimerId);
+    }
+    toastMessage = msg;
+    toastVisible = true;
+    toastTimerId = setTimeout(() => {
+      toastVisible = false;
+      toastTimerId = setTimeout(() => {
+        toastMessage = "";
+        toastTimerId = null;
+      }, 300);
+    }, 2700);
+  }
+
+  function blockUser() {
+    if (!currpost || !currpost.author) return;
+    const author = currpost.author;
+
+    $blockedUsers[author] = true;
+    blockedUsers.set($blockedUsers);
+    showToast(`Blocked user u/${author}`);
+
+    tick().then(() => {
+      if (displayposts.length - index <= 4) {
+        loadMore();
+      }
+    });
+  }
+
   function albumPrev() {
     if (!currpost.is_album) return;
     albumindex -= 1;
@@ -1032,6 +1080,11 @@
     // u
     if (event.keyCode == 85) {
       openUser();
+    }
+
+    // b
+    if (event.keyCode == 66) {
+      blockUser();
     }
 
     // slash, f
@@ -1158,6 +1211,8 @@
           p.user(on:click='{openUser}') {currpost.authorp}
           .subredditwrapper.tooltip.bottom(data-tooltip='{multiredditstr}', on:click|stopPropagation='{toggleMultireddit}', class:ismulti='{ismultireddit}')
             Icon(icon="{ismultireddit ? faMinusCircle : faPlusCircle}")
+          .blockwrapper.tooltip.bottom(data-tooltip='Block User (b)', on:click|stopPropagation='{blockUser}')
+            Icon(icon="{faBan}")
     .settings
 
       a.home(rel="prefetch", href="/home", class:hide='{uiVisible == false}')
@@ -1304,6 +1359,8 @@
                     source(src="{nexturl.preview.vid.mp4}")
                   +else()
                     source(src="{nexturl.default}")
+  +if('toastMessage')
+    .toast(class:fade-out='{!toastVisible}') {toastMessage}
 </template>
 
 <style lang="sass">
@@ -1441,6 +1498,18 @@ $isnotmulti-color: #34a853
 
           @include hover()
             color: $isnotmulti-color
+            opacity: 1
+
+        .blockwrapper
+          display: inline-block
+          margin-left: 7px
+          top: 3px
+          position: relative
+          opacity: 0.5
+          color: darken($text-color, 30%)
+
+          @include hover()
+            color: #ea4335
             opacity: 1
 
       .fav
@@ -1948,5 +2017,41 @@ $isnotmulti-color: #34a853
     &:before, &:after
       visibility: visible
       opacity: 1
+
+@keyframes fadeInUp
+  from
+    opacity: 0
+    transform: translate(-50%, 20px)
+  to
+    opacity: 1
+    transform: translate(-50%, 0)
+
+@keyframes fadeOutDown
+  from
+    opacity: 1
+    transform: translate(-50%, 0)
+  to
+    opacity: 0
+    transform: translate(-50%, 20px)
+
+.toast
+  position: fixed
+  bottom: 80px
+  left: 50%
+  transform: translate(-50%, 0)
+  background-color: rgba(26, 26, 26, 0.95)
+  color: white
+  padding: 12px 24px
+  border-radius: 8px
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5)
+  z-index: 10000
+  font-weight: 500
+  font-size: 0.95rem
+  border: 1px solid #444
+  pointer-events: none
+  animation: fadeInUp 0.3s ease-out forwards
+
+  &.fade-out
+    animation: fadeOutDown 0.3s ease-in forwards
 
 </style>
